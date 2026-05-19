@@ -109,4 +109,4 @@ pyinstaller --onefile --windowed --name="MapAlbum" --clean main.py
 
 ## 💡 Credits
 
-A special thanks to **faye**, who proposed the original idea for this project and contributed to its elegant visual design concepts.
+A special thanks to **Xu Xiaofan**, who proposed the original idea for this project and contributed to its elegant visual design concepts.
