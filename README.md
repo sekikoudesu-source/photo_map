@@ -1,5 +1,3 @@
-Here is the README.md translated and tailored for English. You can copy and save this directly into your project's root directory!
-
 🗺️ My Map Album
 A lightweight, aesthetically pleasing, and private Web-based map album application. This project allows you to drop pins on a map and upload multiple photos for each location, automatically generating a sleek, horizontally scrollable gallery. It features a strict password protection mechanism: the default "View Mode" is strictly for browsing, while "Edit Mode" (which allows adding/deleting data) can only be accessed with a secret key.
 
