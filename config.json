@@ -1,0 +1,13 @@
+{
+    "map_provider": "google",
+    "google_maps_api_key": "Your Google Map Key or you can change the map_provider to leaflet",
+    "edit_password": "password",
+    "server": {
+        "host": "0.0.0.0",
+        "port": 8000,
+        "reload": false
+    },
+    "database": {
+        "file_name": "map_photos.db"
+    }
+}
