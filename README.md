@@ -106,3 +106,7 @@ pyinstaller --onefile --windowed --name="MapAlbum" --clean main.py
 ```
 
 3. **[CRUCIAL STEP]** Once finished, look inside the newly generated `dist` folder for your executable. **You MUST copy `config.json` and `map_photos.db` into the same folder as the executable** for it to run successfully. Double-click to enjoy!
+
+## 💡 Credits
+
+A special thanks to **faye**, who proposed the original idea for this project and contributed to its elegant visual design concepts.
