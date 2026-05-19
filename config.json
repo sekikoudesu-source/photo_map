@@ -1,5 +1,5 @@
 {
-    "map_provider": "google",
+    "map_provider": "leaflet",
     "google_maps_api_key": "Your Google Map Key or you can change the map_provider to leaflet",
     "edit_password": "password",
     "server": {

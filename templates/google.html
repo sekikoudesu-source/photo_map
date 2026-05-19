@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>マイ・マップアルバム (Google Maps版)</title>
+    <script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+    <button id="modeBtn" onclick="toggleMode()">👁️ 現在: 閲覧モード</button>
+    <div id="map"></div>
+    <input type="file" id="photoUpload" accept="image/*" style="display: none;">
+    <input type="file" id="appendPhotoUpload" accept="image/*" style="display: none;">
+    <script src="/static/js/google_map.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=REPLACE_ME_API_KEY&callback=initMap"></script>
+</body>
+</html>

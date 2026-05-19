@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>マイ・マップアルバム (Leaflet版)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+    <button id="modeBtn" onclick="toggleMode()">👁️ 現在: 閲覧モード</button>
+    <div id="map"></div>
+    <input type="file" id="photoUpload" accept="image/*" style="display: none;">
+    <input type="file" id="appendPhotoUpload" accept="image/*" style="display: none;">
+    <script src="/static/js/leaflet_map.js"></script>
+</body>
+</html>

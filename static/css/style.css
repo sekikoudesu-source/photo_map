@@ -1,0 +1,21 @@
+body, html { height: 100%; margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
+#map { height: 100%; width: 100%; }
+.info-window-content { text-align: center; max-width: 280px; }
+.info-window-content h3 { margin: 5px 0; font-size: 16px; color: #75162D; }
+.info-window-content p { font-size: 13px; color: #666; margin: 5px 0 10px 0; }
+
+.photo-gallery { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 5px; margin-bottom: 5px; scroll-behavior: smooth; }
+.photo-gallery::-webkit-scrollbar { height: 6px; }
+.photo-gallery::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+.photo-item { position: relative; flex-shrink: 0; }
+.photo-item img { height: 140px; width: auto; max-width: 220px; object-fit: cover; border-radius: 6px; display: block; box-shadow: 0 2px 4px rgba(0,0,0,0.15); background-color: #f7f3e8; }
+.delete-photo-btn { position: absolute; top: 4px; right: 4px; background: rgba(255,0,0,0.85); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.3); padding: 0; line-height: 1; }
+.delete-photo-btn:hover { background: #ff0000; transform: scale(1.1); }
+
+.btn-group { display: flex; gap: 8px; margin-top: 10px; }
+.btn { flex: 1; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; font-size: 12px; }
+.add-photo-btn { background-color: #947AB6; }
+.delete-btn { background-color: #ff4d4d; }
+#modeBtn { position: absolute; top: 20px; right: 20px; z-index: 1000; padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+.custom-waterdrop-pin { width: 8px; height: 8px; background-color: #947AB6; border-radius: 100% 100% 0 100%; transform: rotate(-45deg); margin-left: -4px; margin-top: -8px; box-shadow: -1px 1px 3px rgba(0,0,0,0.3); }
