@@ -89,14 +89,20 @@ Upon opening, the map is locked in "View Mode". You can zoom around, click on th
 If you want to run the app without a Python environment or share it with others, you can package it using `PyInstaller`:
 
 1. Install the packaging tool:
-   ```bash
-   pip install pyinstaller
-   ```
+```bash
+pip install pyinstaller
+```
+
 2. Execute the build command (run inside your project directory):
-   * **Windows:** ```bash
-     pyinstaller --onefile --name="MapAlbum" --clean main.py
-     ```
-   * **Mac:** ```bash
-     pyinstaller --onefile --windowed --name="MapAlbum" --clean main.py
-     ```
+
+* **Windows:**
+```bash
+pyinstaller --onefile --name="MapAlbum" --clean main.py
+```
+
+* **Mac:**
+```bash
+pyinstaller --onefile --windowed --name="MapAlbum" --clean main.py
+```
+
 3. **[CRUCIAL STEP]** Once finished, look inside the newly generated `dist` folder for your executable. **You MUST copy `config.json` and `map_photos.db` into the same folder as the executable** for it to run successfully. Double-click to enjoy!
