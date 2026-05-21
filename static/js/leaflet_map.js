@@ -219,19 +219,25 @@ function initMap() {
 // 6. 大头针与气泡渲染工厂
 // ==========================================
 function createMarker(item) {
+    // 【魔法修改】：大头针视觉依然是 14x21，但在外面套了一个 34x41 的透明隐形方块
     const svgHtml = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="14px" height="21px">
-            <path d="M12 0C5.373 0 0 5.373 0 12c0 7.5 12 24 12 24s12-16.5 12-24c0-6.627-5.373-12-12-12z" 
-                  fill="#947AB6" 
-                  style="filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.3));" />
-        </svg>
+        <div style="width: 34px; height: 41px; display: flex; align-items: flex-end; justify-content: center; cursor: pointer;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="14px" height="21px">
+                <path d="M12 0C5.373 0 0 5.373 0 12c0 7.5 12 24 12 24s12-16.5 12-24c0-6.627-5.373-12-12-12z" 
+                      fill="#947AB6" 
+                      style="filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.3));" />
+            </svg>
+        </div>
     `;
 
     const pinIcon = L.divIcon({
         className: '',
         html: svgHtml,
-        iconSize: [14, 21],
-        iconAnchor: [7, 21],
+        // 【关键】告诉地图引擎，现在这个按钮有 34x41 这么大！非常容易点中！
+        iconSize: [34, 41],
+        // 【重新计算锚点】X 是宽 34 的一半 (17)，Y 是总高 (41)，确保内部的针尖依然完美踩在坐标点上
+        iconAnchor: [17, 41],
+        // 气泡依然从针尖上方弹出
         popupAnchor: [0, -18]
     });
 
@@ -248,9 +254,11 @@ function createMarker(item) {
         return `<div class="info-window-content"><h3>${marker._item.name}</h3><div class="photo-gallery">${photosHtml}</div><p>${marker._item.description}</p>${btnsHtml}</div>`;
     }
 
-    marker.on('click', function() { marker.bindPopup(getPopupContent(), { maxWidth: 320 }).openPopup(); });
-    marker._refreshPopup = function() { marker.setPopupContent(getPopupContent()); };
+    // 【修复冲突】直接绑定，不写 on('click')，让 Leaflet 全权接管点击开关动作
+    marker.bindPopup(getPopupContent(), { maxWidth: 320 });
 
+    // 刷新内容的接口保持不变
+    marker._refreshPopup = function() { marker.setPopupContent(getPopupContent()); };
     markersDict[item.id] = marker;
     clusterManager.addLayer(marker);
 }
