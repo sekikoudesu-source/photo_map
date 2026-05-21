@@ -1,263 +1,290 @@
-import os
-import json
 import sqlite3
 import uvicorn
-import webbrowser
-import threading
-import sys
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+import json
+import os
+import base64
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
-
-# --- 1. 确定运行路径 (兼容 PyInstaller 打包) ---
-if getattr(sys, 'frozen', False):
-    # 如果是打包后的 exe 运行
-    BASE_DIR = sys._MEIPASS
-else:
-    # 如果是普通的 python 脚本运行
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# --- 2. 設定の読み込み ---
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
-with open(config_path, "r", encoding="utf-8") as f:
-    config = json.load(f)
-
-DB_FILE = config["database"]["file_name"]
-EDIT_PASSWORD = config["edit_password"]
-MAP_PROVIDER = config.get("map_provider", "leaflet").lower()
-GOOGLE_API_KEY = config.get("google_maps_api_key", "")
+from typing import List
 
 app = FastAPI()
 
-# --- 3. 挂载静态文件目录 (CSS / JS) ---
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+CONFIG_FILE = "config.json"
+
+# ==========================================
+# 动态读取配置文件
+# ==========================================
+if not os.path.exists(CONFIG_FILE):
+    raise FileNotFoundError(f"未找到配置文件 {CONFIG_FILE}，请确保该文件已放置在项目根目录下。")
+
+with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+    config_data = json.load(f)
+
+MASTER_PASSWORD = config_data.get("edit_password", "password")
+DB_PATH = config_data.get("database", {}).get("file_name", "map_photos.db")
+SERVER_HOST = config_data.get("server", {}).get("host", "0.0.0.0")
+SERVER_PORT = config_data.get("server", {}).get("port", 8000)
+SERVER_RELOAD = config_data.get("server", {}).get("reload", False)
 
 
-# --- 4. データベースの初期化 ---
+# ==========================================
+# 初始化数据库 (开启 WAL 模式抵御死锁)
+# ==========================================
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''
-                   CREATE TABLE IF NOT EXISTS markers
-                   (
-                       id
-                       INTEGER
-                       PRIMARY
-                       KEY
-                       AUTOINCREMENT,
-                       name
-                       TEXT
-                       NOT
-                       NULL,
-                       lat
-                       REAL
-                       NOT
-                       NULL,
-                       lng
-                       REAL
-                       NOT
-                       NULL,
-                       description
-                       TEXT,
-                       image_base64
-                       TEXT
-                   )
-                   ''')
-    cursor.execute('''
-                   CREATE TABLE IF NOT EXISTS photos
-                   (
-                       id
-                       INTEGER
-                       PRIMARY
-                       KEY
-                       AUTOINCREMENT,
-                       marker_id
-                       INTEGER
-                       NOT
-                       NULL,
-                       image_base64
-                       TEXT
-                       NOT
-                       NULL,
-                       FOREIGN
-                       KEY
-                   (
-                       marker_id
-                   ) REFERENCES markers
-                   (
-                       id
-                   ) ON DELETE CASCADE
-                       )
-                   ''')
-
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     try:
-        cursor.execute("SELECT id, image_base64 FROM markers")
-        rows = cursor.fetchall()
-        for row in rows:
-            marker_id = row[0]
-            img = row[1]
-            if img and img.strip() != "":
-                cursor.execute("SELECT id FROM photos WHERE marker_id = ? AND image_base64 = ?", (marker_id, img))
-                if not cursor.fetchone():
-                    cursor.execute("INSERT INTO photos (marker_id, image_base64) VALUES (?, ?)", (marker_id, img))
-        cursor.execute("UPDATE markers SET image_base64 = '' WHERE image_base64 != ''")
-    except Exception:
-        pass
-
-    conn.commit()
-    conn.close()
+        conn.execute("PRAGMA journal_mode=WAL;")
+        cursor = conn.cursor()
+        cursor.execute("""
+                       CREATE TABLE IF NOT EXISTS markers
+                       (
+                           id
+                           INTEGER
+                           PRIMARY
+                           KEY
+                           AUTOINCREMENT,
+                           lat
+                           REAL
+                           NOT
+                           NULL,
+                           lng
+                           REAL
+                           NOT
+                           NULL,
+                           name
+                           TEXT
+                           NOT
+                           NULL,
+                           description
+                           TEXT
+                       )
+                       """)
+        cursor.execute("""
+                       CREATE TABLE IF NOT EXISTS photos
+                       (
+                           id
+                           INTEGER
+                           PRIMARY
+                           KEY
+                           AUTOINCREMENT,
+                           marker_id
+                           INTEGER
+                           NOT
+                           NULL,
+                           base64
+                           TEXT
+                           NOT
+                           NULL,
+                           FOREIGN
+                           KEY
+                       (
+                           marker_id
+                       ) REFERENCES markers
+                       (
+                           id
+                       ) ON DELETE CASCADE
+                           )
+                       """)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 init_db()
 
 
-# --- 5. データモデル ---
-class MarkerData(BaseModel):
-    name: str
+# ==========================================
+# WebSocket 实时全双工广播站
+# ==========================================
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message)
+            except:
+                pass
+
+
+manager = ConnectionManager()
+
+
+# ==========================================
+# 数据校验模型
+# ==========================================
+class PasswordVerify(BaseModel):
+    password: str
+
+
+class MarkerCreate(BaseModel):
     lat: float
     lng: float
-    description: str
+    name: str
+    image_base64: str
+    description: str = ""
+    password: str
+
+
+class PhotoCreate(BaseModel):
     image_base64: str
     password: str
 
 
-class AddPhotoData(BaseModel):
-    image_base64: str
+class ActionAuth(BaseModel):
     password: str
 
 
-class PasswordData(BaseModel):
-    password: str
+def verify_auth(password: str):
+    if password != MASTER_PASSWORD:
+        raise HTTPException(status_code=401, detail="密码不正确")
 
 
-# --- 6. API エンドポイント ---
+# ==========================================
+# API 路由
+# ==========================================
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    return templates.TemplateResponse(request=request, name="leaflet.html")
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
 @app.post("/api/verify_password")
-def verify_password(data: PasswordData):
-    if data.password == EDIT_PASSWORD:
-        return {"status": "success"}
-    else:
-        raise HTTPException(status_code=403, detail="パスワードが正しくありません")
+async def verify_password(data: PasswordVerify):
+    verify_auth(data.password)
+    return {"status": "ok"}
+
+
+# 🚀 优化：瘦身版的 JSON 获取接口（不传图片数据）
+@app.get("/api/get_markers")
+async def get_markers():
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM markers")
+        markers = [dict(row) for row in cursor.fetchall()]
+
+        for m in markers:
+            # 仅提取照片 ID，彻底剥离沉重的 Base64 字符串
+            cursor.execute("SELECT id FROM photos WHERE marker_id = ?", (m["id"],))
+            m["photos"] = [dict(row) for row in cursor.fetchall()]
+        return markers
+    finally:
+        conn.close()
+
+
+# 🚀 新增：独立的图片加载管道与一年期强缓存
+@app.get("/api/image/{photo_id}")
+async def get_image(photo_id: int):
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT base64 FROM photos WHERE id = ?", (photo_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Image not found")
+
+        b64_data = row[0]
+        # 清洗前端传来的 "data:image/jpeg;base64," 头部
+        if "," in b64_data:
+            _, encoded = b64_data.split(",", 1)
+        else:
+            encoded = b64_data
+
+        image_bytes = base64.b64decode(encoded)
+
+        # 写入强缓存头，让浏览器将照片缓存在本地硬盘 31536000 秒 (一年)
+        headers = {
+            "Cache-Control": "public, max-age=31536000, immutable"
+        }
+        return Response(content=image_bytes, media_type="image/jpeg", headers=headers)
+    finally:
+        conn.close()
 
 
 @app.post("/api/add_marker")
-def add_marker(data: MarkerData):
-    if data.password != EDIT_PASSWORD:
-        raise HTTPException(status_code=403, detail="パスワードが違います。追加権限がありません。")
-
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO markers (name, lat, lng, description, image_base64) VALUES (?, ?, ?, ?, '')",
-        (data.name, data.lat, data.lng, data.description)
-    )
-    new_marker_id = cursor.lastrowid
-    cursor.execute(
-        "INSERT INTO photos (marker_id, image_base64) VALUES (?, ?)",
-        (new_marker_id, data.image_base64)
-    )
-    new_photo_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return {"status": "success", "id": new_marker_id, "photo_id": new_photo_id}
+async def add_marker(data: MarkerCreate):
+    verify_auth(data.password)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO markers (lat, lng, name, description) VALUES (?, ?, ?, ?)",
+                       (data.lat, data.lng, data.name, data.description))
+        marker_id = cursor.lastrowid
+        cursor.execute("INSERT INTO photos (marker_id, base64) VALUES (?, ?)", (marker_id, data.image_base64))
+        conn.commit()
+    finally:
+        conn.close()
+    await manager.broadcast("refresh")
+    return {"status": "ok"}
 
 
 @app.post("/api/add_photo/{marker_id}")
-def add_photo(marker_id: int, data: AddPhotoData):
-    if data.password != EDIT_PASSWORD:
-        raise HTTPException(status_code=403, detail="パスワードが違います。写真を追加する権限がありません。")
-
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO photos (marker_id, image_base64) VALUES (?, ?)", (marker_id, data.image_base64))
-    new_photo_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return {"status": "success", "photo_id": new_photo_id}
+async def add_photo(marker_id: int, data: PhotoCreate):
+    verify_auth(data.password)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO photos (marker_id, base64) VALUES (?, ?)", (marker_id, data.image_base64))
+        conn.commit()
+    finally:
+        conn.close()
+    await manager.broadcast("refresh")
+    return {"status": "ok"}
 
 
 @app.delete("/api/delete_marker/{marker_id}")
-def delete_marker(marker_id: int, data: PasswordData):
-    if data.password != EDIT_PASSWORD:
-        raise HTTPException(status_code=403, detail="パスワードが違います。削除権限がありません。")
-
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM photos WHERE marker_id = ?", (marker_id,))
-    cursor.execute("DELETE FROM markers WHERE id = ?", (marker_id,))
-    conn.commit()
-    conn.close()
-    return {"status": "success"}
+async def delete_marker(marker_id: int, data: ActionAuth):
+    verify_auth(data.password)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM photos WHERE marker_id = ?", (marker_id,))
+        cursor.execute("DELETE FROM markers WHERE id = ?", (marker_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    await manager.broadcast("refresh")
+    return {"status": "ok"}
 
 
 @app.delete("/api/delete_photo/{photo_id}")
-def delete_photo(photo_id: int, data: PasswordData):
-    if data.password != EDIT_PASSWORD:
-        raise HTTPException(status_code=403, detail="パスワードが違います。削除権限がありません。")
+async def delete_photo(photo_id: int, data: ActionAuth):
+    verify_auth(data.password)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    await manager.broadcast("refresh")
+    return {"status": "ok"}
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
-    conn.commit()
-    conn.close()
-    return {"status": "success"}
-
-
-@app.get("/api/get_markers")
-def get_markers():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, name, lat, lng, description FROM markers")
-    markers = cursor.fetchall()
-
-    result = []
-    for row in markers:
-        marker_id = row[0]
-        cursor.execute("SELECT id, image_base64 FROM photos WHERE marker_id = ?", (marker_id,))
-        photos = [{"id": p[0], "base64": p[1]} for p in cursor.fetchall()]
-        result.append({
-            "id": marker_id,
-            "name": row[1],
-            "lat": row[2],
-            "lng": row[3],
-            "description": row[4],
-            "photos": photos
-        })
-    conn.close()
-    return result
-
-
-# --- 7. 读取外部 HTML 文件 ---
-@app.get("/")
-def get_html():
-    if MAP_PROVIDER == "google":
-        html_file = os.path.join(BASE_DIR, "templates", "google.html")
-    else:
-        html_file = os.path.join(BASE_DIR, "templates", "leaflet.html")
-
-    with open(html_file, "r", encoding="utf-8") as file:
-        html_content = file.read()
-
-    # 如果是 Google Maps，动态注入 API 密钥
-    if MAP_PROVIDER == "google":
-        html_content = html_content.replace("REPLACE_ME_API_KEY", GOOGLE_API_KEY)
-
-    return HTMLResponse(content=html_content)
-
-
-# --- 8. ランチャー ---
 if __name__ == "__main__":
-    host = config["server"]["host"]
-    port = config["server"]["port"]
-    url = f"http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}"
-
-    print(f"🚀 サーバーを起動中... 自動的にブラウザを開きます: {url}")
-    threading.Timer(1.5, lambda: webbrowser.open(url)).start()
-
-    is_frozen = getattr(sys, 'frozen', False)
-    reload_flag = False if is_frozen else config["server"]["reload"]
-
-    if reload_flag:
-        uvicorn.run("main:app", host=host, port=port, reload=True)
-    else:
-        uvicorn.run(app, host=host, port=port, reload=False)
+    uvicorn.run("main:app", host=SERVER_HOST, port=SERVER_PORT, reload=SERVER_RELOAD)

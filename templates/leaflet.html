@@ -3,19 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地图相册 - Map Album</title>
+    <title>思い出の軌跡 - Map Album</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
 
-    <link rel="stylesheet" href="/static/css/style.css?v=6" />
+    <link rel="stylesheet" href="/static/css/style.css?v=10" />
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 </head>
 <body>
@@ -24,21 +21,17 @@
 
         <div id="sidebar">
             <h2>📸 思い出の軌跡</h2>
-            <div id="marker-list">
-                </div>
-
+            <div id="marker-list"></div>
             <button id="toggleSidebarBtn" onclick="toggleSidebar()"></button>
         </div>
 
         <div id="map-container">
-
             <div id="search-box">
                 <input type="text" id="searchInput" placeholder="🔍 スポットや住所を検索 (例: 東京タワー)">
                 <button onclick="searchLocation()">検索</button>
             </div>
 
             <button id="modeBtn" onclick="toggleMode()">👁️ 現在: 閲覧モード</button>
-
             <button id="smartUploadBtn" style="display:none; position: absolute; top: 70px; right: 20px; z-index: 1000; padding: 10px 20px; background-color: #947AB6; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3);" onclick="document.getElementById('smartPhotoUpload').click()">📍 写真から自動で位置取得</button>
 
             <div id="map"></div>
@@ -50,7 +43,7 @@
     <input type="file" id="appendPhotoUpload" accept="image/*" style="display: none;">
     <input type="file" id="smartPhotoUpload" accept="image/*" style="display: none;">
 
-    <script src="/static/js/leaflet_map.js"></script>
+    <script src="/static/js/leaflet_map.js?v=3"></script>
 
 </body>
 </html>
