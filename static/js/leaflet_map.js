@@ -7,30 +7,25 @@ let currentEditingMarkerId = null;
 let map, clusterManager, tempClickedLat = null, tempClickedLng = null;
 
 // ==========================================
-// 【新增核心魔法】：无刷新更新 UI (SPA 的灵魂)
+// 【核心魔法】：无刷新更新 UI (SPA 的灵魂)
 // ==========================================
 function refreshUI() {
-    // 1. 清空地图上所有旧的大头针
-    if (clusterManager) {
-        clusterManager.clearLayers();
-    }
-    markersDict = {}; // 清空数据字典
+    if (clusterManager) clusterManager.clearLayers();
+    markersDict = {};
 
-    // 2. 清空侧边栏旧列表
     const listContainer = document.getElementById("marker-list");
     if(listContainer) listContainer.innerHTML = "";
 
-    // 3. 重新向 Python 后端索要最新数据，并重新渲染
-    fetch("/api/get_markers").then(res => res.json()).then(data => {
+    fetch("/api/get_markers",{
+    headers: {
+        "ngrok-skip-browser-warning": "true" // 这就是接头暗号，值随便写什么都行
+    }}).then(res => res.json()).then(data => {
         data.forEach(item => {
-            createMarker(item); // 画大头针
-
-            // 画侧边栏卡片
+            createMarker(item);
             if (listContainer) {
                 const div = document.createElement("div");
                 div.className = "list-item";
                 div.innerHTML = `<h4>${item.name}</h4><p>${item.description}</p>`;
-
                 div.onclick = () => {
                     map.flyTo([item.lat, item.lng], 16, { animate: true, duration: 1.5 });
                     setTimeout(() => {
@@ -57,11 +52,12 @@ function toggleSidebar() {
 }
 
 // ==========================================
-// 2. 模式切换与验证逻辑
+// 2. 模式切换与验证逻辑 (带准星联动)
 // ==========================================
 async function toggleMode() {
     const modeBtn = document.getElementById("modeBtn");
     const smartBtn = document.getElementById("smartUploadBtn");
+    const mapContainer = document.getElementById("map");
 
     if (isEditMode) {
         isEditMode = false;
@@ -69,6 +65,7 @@ async function toggleMode() {
         modeBtn.innerHTML = "👁️ 現在: 閲覧モード";
         modeBtn.style.backgroundColor = "#4CAF50";
         if (smartBtn) smartBtn.style.display = "none";
+        mapContainer.classList.remove("crosshair-cursor-enabled");
     } else {
         const pwd = prompt("編集用パスワードを入力してください:");
         if (pwd) {
@@ -85,6 +82,7 @@ async function toggleMode() {
                     modeBtn.innerHTML = "✏️ 現在: 編集モード";
                     modeBtn.style.backgroundColor = "#ff9800";
                     if (smartBtn) smartBtn.style.display = "block";
+                    mapContainer.classList.add("crosshair-cursor-enabled");
                 } else {
                     alert("❌ パスワードが正しくありません！");
                 }
@@ -132,11 +130,10 @@ function bindAppendPhotoEvent() {
 }
 
 // ==========================================
-// 4. 删除逻辑 (地点 & 单张照片)
+// 4. 删除逻辑 (SPA 无刷新重绘)
 // ==========================================
 window.deleteMarkerFromDB = function(markerId) {
     if(!confirm("このスポットと、含まれるすべての写真を削除してもよろしいですか？")) return;
-
     fetch("/api/delete_marker/" + markerId, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -144,14 +141,12 @@ window.deleteMarkerFromDB = function(markerId) {
     })
     .then(res => {
         if(!res.ok) throw new Error("削除に失敗しました");
-        // 【修改点】：不再刷新网页，直接调用无刷新重绘
         refreshUI();
     }).catch(err => alert(err.message));
 }
 
 window.deletePhotoFromDB = function(photoId, markerId) {
     if(!confirm("この写真だけを削除してもよろしいですか？")) return;
-
     fetch("/api/delete_photo/" + photoId, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -173,7 +168,6 @@ window.deletePhotoFromDB = function(photoId, markerId) {
 function initMap() {
     map = L.map('map', { zoomControl: false, doubleClickZoom: false }).setView([33.5902, 130.4017], 12);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
@@ -181,9 +175,7 @@ function initMap() {
     clusterManager = L.markerClusterGroup();
     map.addLayer(clusterManager);
 
-    // 【修改点】：初始化时直接调用无刷新重绘函数
     refreshUI();
-
     bindAppendPhotoEvent();
 
     const fileInput = document.getElementById("photoUpload");
@@ -215,7 +207,6 @@ function initMap() {
             .then(res => res.json())
             .then(data => {
                 alert("追加完了！");
-                // 【修改点】：上传成功后，丝滑重绘 UI，保持编辑模式不退出
                 refreshUI();
             });
             fileInput.value = "";
@@ -315,7 +306,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     .then(res => res.json())
                     .then(data => {
                         alert("✅ 追加完了！");
-                        // 【修改点】：同样丝滑重绘 UI
                         refreshUI();
                     });
                 };
@@ -326,6 +316,46 @@ document.addEventListener("DOMContentLoaded", function() {
         });
         e.target.value = '';
     });
+});
+
+// ==========================================
+// 8. OpenStreetMap (Nominatim) 搜索功能
+// ==========================================
+function searchLocation() {
+    const input = document.getElementById("searchInput");
+    const query = input.value.trim();
+    if (!query) return;
+
+    const searchBtn = input.nextElementSibling;
+    const originalText = searchBtn.innerHTML;
+    searchBtn.innerHTML = "⏳";
+
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => {
+            searchBtn.innerHTML = originalText;
+
+            if (data && data.length > 0) {
+                const targetLat = parseFloat(data[0].lat);
+                const targetLon = parseFloat(data[0].lon);
+                map.flyTo([targetLat, targetLon], 16, { animate: true, duration: 2.0 });
+            } else {
+                alert("❌ 場所が見つかりませんでした。別のキーワード(英語や正式名称)を試してください。");
+            }
+        })
+        .catch(err => {
+            searchBtn.innerHTML = originalText;
+            alert("通信エラーが発生しました。");
+        });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const searchInput = document.getElementById("searchInput");
+    if (searchInput) {
+        searchInput.addEventListener("keypress", function (e) {
+            if (e.key === "Enter") searchLocation();
+        });
+    }
 });
 
 window.onload = initMap;

@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
 
-    <link rel="stylesheet" href="/static/css/style.css?v=5" />
+    <link rel="stylesheet" href="/static/css/style.css?v=6" />
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -23,7 +23,7 @@
     <div id="app-container">
 
         <div id="sidebar">
-            <h2>📸 记忆时间轴</h2>
+            <h2>📸 思い出の軌跡</h2>
             <div id="marker-list">
                 </div>
 
@@ -31,6 +31,12 @@
         </div>
 
         <div id="map-container">
+
+            <div id="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 スポットや住所を検索 (例: 東京タワー)">
+                <button onclick="searchLocation()">検索</button>
+            </div>
+
             <button id="modeBtn" onclick="toggleMode()">👁️ 現在: 閲覧モード</button>
 
             <button id="smartUploadBtn" style="display:none; position: absolute; top: 70px; right: 20px; z-index: 1000; padding: 10px 20px; background-color: #947AB6; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3);" onclick="document.getElementById('smartPhotoUpload').click()">📍 写真から自動で位置取得</button>
