@@ -109,7 +109,23 @@ window.deletePhotoFromDB = function(photoId, markerId) {
 }
 
 function createMarker(item) {
-    const pinIcon = L.divIcon({ className: 'custom-waterdrop-pin', iconSize: [8, 8], iconAnchor: [0, 0] });
+    const svgHtml = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24px" height="36px">
+            <path d="M12 0C5.373 0 0 5.373 0 12c0 7.5 12 24 12 24s12-16.5 12-24c0-6.627-5.373-12-12-12z" 
+                  fill="#947AB6" 
+                  style="filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.3));" />
+        </svg>
+    `;
+
+    const pinIcon = L.divIcon({
+        className: '',          // 【关键】必须留空！这会清除 Leaflet 默认的白色背景框
+        html: svgHtml,
+       iconSize: [14, 21],     // 【关键】修改尺寸：宽 18，高 27
+        iconAnchor: [7, 21],    // 【关键】修改锚点：X 是宽的一半(9)，Y 是高(27)，保证针尖绝对居中
+        popupAnchor: [0, -18]   // 【关键】气泡弹出的位置也稍微往下挪一点，贴合变小的大头针
+    });
+
+    // 下面的代码保持不变...
     const marker = L.marker([item.lat, item.lng], { icon: pinIcon });
     marker._item = item;
 
