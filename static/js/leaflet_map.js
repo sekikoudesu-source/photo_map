@@ -1,27 +1,103 @@
-let isEditMode = false, secretPassword = "", markersDict = {};
+// ==========================================
+// 全局变量定义
+// ==========================================
+let isEditMode = false, secretPassword = "";
+let markersDict = {};
 let currentEditingMarkerId = null;
 let map, clusterManager, tempClickedLat = null, tempClickedLng = null;
 
+// ==========================================
+// 【新增核心魔法】：无刷新更新 UI (SPA 的灵魂)
+// ==========================================
+function refreshUI() {
+    // 1. 清空地图上所有旧的大头针
+    if (clusterManager) {
+        clusterManager.clearLayers();
+    }
+    markersDict = {}; // 清空数据字典
+
+    // 2. 清空侧边栏旧列表
+    const listContainer = document.getElementById("marker-list");
+    if(listContainer) listContainer.innerHTML = "";
+
+    // 3. 重新向 Python 后端索要最新数据，并重新渲染
+    fetch("/api/get_markers").then(res => res.json()).then(data => {
+        data.forEach(item => {
+            createMarker(item); // 画大头针
+
+            // 画侧边栏卡片
+            if (listContainer) {
+                const div = document.createElement("div");
+                div.className = "list-item";
+                div.innerHTML = `<h4>${item.name}</h4><p>${item.description}</p>`;
+
+                div.onclick = () => {
+                    map.flyTo([item.lat, item.lng], 16, { animate: true, duration: 1.5 });
+                    setTimeout(() => {
+                        const marker = markersDict[item.id];
+                        if(marker) {
+                            clusterManager.zoomToShowLayer(marker, () => {
+                                marker.openPopup();
+                            });
+                        }
+                    }, 1500);
+                };
+                listContainer.appendChild(div);
+            }
+        });
+    });
+}
+
+// ==========================================
+// 1. 收起/展开侧边栏核心逻辑
+// ==========================================
+function toggleSidebar() {
+    const sidebar = document.getElementById("sidebar");
+    sidebar.classList.toggle("collapsed");
+}
+
+// ==========================================
+// 2. 模式切换与验证逻辑
+// ==========================================
 async function toggleMode() {
+    const modeBtn = document.getElementById("modeBtn");
+    const smartBtn = document.getElementById("smartUploadBtn");
+
     if (isEditMode) {
-        isEditMode = false; secretPassword = "";
-        document.getElementById("modeBtn").innerHTML = "👁️ 現在: 閲覧モード";
-        document.getElementById("modeBtn").style.backgroundColor = "#4CAF50";
+        isEditMode = false;
+        secretPassword = "";
+        modeBtn.innerHTML = "👁️ 現在: 閲覧モード";
+        modeBtn.style.backgroundColor = "#4CAF50";
+        if (smartBtn) smartBtn.style.display = "none";
     } else {
         const pwd = prompt("編集用パスワードを入力してください:");
         if (pwd) {
             try {
-                const response = await fetch("/api/verify_password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pwd }) });
+                const response = await fetch("/api/verify_password", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ password: pwd })
+                });
+
                 if (response.ok) {
-                    secretPassword = pwd; isEditMode = true;
-                    document.getElementById("modeBtn").innerHTML = "✏️ 現在: 編集モード";
-                    document.getElementById("modeBtn").style.backgroundColor = "#ff9800";
-                } else { alert("❌ パスワードが正しくありません！"); }
-            } catch (error) { alert("サーバーとの通信に失敗しました！"); }
+                    secretPassword = pwd;
+                    isEditMode = true;
+                    modeBtn.innerHTML = "✏️ 現在: 編集モード";
+                    modeBtn.style.backgroundColor = "#ff9800";
+                    if (smartBtn) smartBtn.style.display = "block";
+                } else {
+                    alert("❌ パスワードが正しくありません！");
+                }
+            } catch (error) {
+                alert("サーバーとの通信に失敗しました！");
+            }
         }
     }
 }
 
+// ==========================================
+// 3. 追加单张照片逻辑
+// ==========================================
 window.triggerAddPhoto = function(markerId) {
     currentEditingMarkerId = markerId;
     document.getElementById("appendPhotoUpload").click();
@@ -31,73 +107,56 @@ function bindAppendPhotoEvent() {
     document.getElementById("appendPhotoUpload").addEventListener("change", function(event) {
         const file = event.target.files[0];
         if (!file || !currentEditingMarkerId) return;
+
         const reader = new FileReader();
         reader.onload = function(e) {
             const base64 = e.target.result;
             fetch("/api/add_photo/" + currentEditingMarkerId, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image_base64: base64, password: secretPassword })
-            }).then(res => res.json()).then(data => {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image_base64: base64, password: secretPassword })
+            })
+            .then(res => res.json())
+            .then(data => {
                 const marker = markersDict[currentEditingMarkerId];
                 if (marker && marker._item && marker._refreshPopup) {
                     marker._item.photos.push({ id: data.photo_id, base64: base64 });
                     marker._refreshPopup();
                 }
-            }).catch(err => alert("写真の追加に失敗しました！"));
+            })
+            .catch(err => alert("写真の追加に失敗しました！"));
         };
         reader.readAsDataURL(file);
         event.target.value = '';
     });
 }
 
-function initMap() {
-    map = L.map('map', { zoomControl: true, doubleClickZoom: false }).setView([33.5902, 130.4017], 12);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
-    clusterManager = L.markerClusterGroup();
-    map.addLayer(clusterManager);
-
-    fetch("/api/get_markers").then(res => res.json()).then(data => {
-        data.forEach(item => createMarker(item));
-    });
-
-    bindAppendPhotoEvent();
-
-    const fileInput = document.getElementById("photoUpload");
-    map.on("click", (e) => {
-        if (!isEditMode) return;
-        tempClickedLat = e.latlng.lat; tempClickedLng = e.latlng.lng; fileInput.click();
-    });
-
-    fileInput.addEventListener("change", function(event) {
-        const file = event.target.files[0]; if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const localImageUrl = e.target.result;
-            const newName = prompt("写真が読み込まれました！スポット名を入力してください:", "新しいスポット"); if (!newName) return;
-            const newDesc = prompt("スポットの簡単な説明を入力してください:", "思い出の記録");
-
-            fetch("/api/add_marker", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lat: tempClickedLat, lng: tempClickedLng, name: newName, image_base64: localImageUrl, description: newDesc, password: secretPassword }) })
-            .then(res => res.json()).then(data => {
-                createMarker({ id: data.id, lat: tempClickedLat, lng: tempClickedLng, name: newName, description: newDesc, photos: [{ id: data.photo_id, base64: localImageUrl }] });
-            });
-            fileInput.value = "";
-        };
-        reader.readAsDataURL(file);
-    });
-}
-
+// ==========================================
+// 4. 删除逻辑 (地点 & 单张照片)
+// ==========================================
 window.deleteMarkerFromDB = function(markerId) {
     if(!confirm("このスポットと、含まれるすべての写真を削除してもよろしいですか？")) return;
-    fetch("/api/delete_marker/" + markerId, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: secretPassword }) })
+
+    fetch("/api/delete_marker/" + markerId, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: secretPassword })
+    })
     .then(res => {
         if(!res.ok) throw new Error("削除に失敗しました");
-        const m = markersDict[markerId];
-        if (m) { clusterManager.removeLayer(m); delete markersDict[markerId]; }
+        // 【修改点】：不再刷新网页，直接调用无刷新重绘
+        refreshUI();
     }).catch(err => alert(err.message));
 }
 
 window.deletePhotoFromDB = function(photoId, markerId) {
     if(!confirm("この写真だけを削除してもよろしいですか？")) return;
-    fetch("/api/delete_photo/" + photoId, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: secretPassword }) })
+
+    fetch("/api/delete_photo/" + photoId, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: secretPassword })
+    })
     .then(res => {
         if(!res.ok) throw new Error("削除に失敗しました");
         const m = markersDict[markerId];
@@ -108,9 +167,69 @@ window.deletePhotoFromDB = function(photoId, markerId) {
     }).catch(err => alert(err.message));
 }
 
+// ==========================================
+// 5. 地图初始化与渲染核心
+// ==========================================
+function initMap() {
+    map = L.map('map', { zoomControl: false, doubleClickZoom: false }).setView([33.5902, 130.4017], 12);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+    }).addTo(map);
+
+    clusterManager = L.markerClusterGroup();
+    map.addLayer(clusterManager);
+
+    // 【修改点】：初始化时直接调用无刷新重绘函数
+    refreshUI();
+
+    bindAppendPhotoEvent();
+
+    const fileInput = document.getElementById("photoUpload");
+    map.on("click", (e) => {
+        if (!isEditMode) return;
+        tempClickedLat = e.latlng.lat;
+        tempClickedLng = e.latlng.lng;
+        fileInput.click();
+    });
+
+    fileInput.addEventListener("change", function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const localImageUrl = e.target.result;
+            const newName = prompt("写真が読み込まれました！スポット名を入力してください:", "新しいスポット");
+            if (!newName) return;
+            const newDesc = prompt("スポットの簡単な説明を入力してください:", "思い出の記録");
+
+            fetch("/api/add_marker", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    lat: tempClickedLat, lng: tempClickedLng, name: newName,
+                    image_base64: localImageUrl, description: newDesc, password: secretPassword
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert("追加完了！");
+                // 【修改点】：上传成功后，丝滑重绘 UI，保持编辑模式不退出
+                refreshUI();
+            });
+            fileInput.value = "";
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// ==========================================
+// 6. 大头针与气泡渲染工厂
+// ==========================================
 function createMarker(item) {
     const svgHtml = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24px" height="36px">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="14px" height="21px">
             <path d="M12 0C5.373 0 0 5.373 0 12c0 7.5 12 24 12 24s12-16.5 12-24c0-6.627-5.373-12-12-12z" 
                   fill="#947AB6" 
                   style="filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.3));" />
@@ -118,14 +237,13 @@ function createMarker(item) {
     `;
 
     const pinIcon = L.divIcon({
-        className: '',          // 【关键】必须留空！这会清除 Leaflet 默认的白色背景框
+        className: '',
         html: svgHtml,
-       iconSize: [14, 21],     // 【关键】修改尺寸：宽 18，高 27
-        iconAnchor: [7, 21],    // 【关键】修改锚点：X 是宽的一半(9)，Y 是高(27)，保证针尖绝对居中
-        popupAnchor: [0, -18]   // 【关键】气泡弹出的位置也稍微往下挪一点，贴合变小的大头针
+        iconSize: [14, 21],
+        iconAnchor: [7, 21],
+        popupAnchor: [0, -18]
     });
 
-    // 下面的代码保持不变...
     const marker = L.marker([item.lat, item.lng], { icon: pinIcon });
     marker._item = item;
 
@@ -145,5 +263,69 @@ function createMarker(item) {
     markersDict[item.id] = marker;
     clusterManager.addLayer(marker);
 }
+
+// ==========================================
+// 7. EXIF 智能照片 GPS 解析
+// ==========================================
+function convertDMSToDD(dmsArray, ref) {
+    if (!dmsArray || dmsArray.length < 3) return null;
+    let degrees = dmsArray[0].valueOf();
+    let minutes = dmsArray[1].valueOf();
+    let seconds = dmsArray[2].valueOf();
+    let decimal = degrees + (minutes / 60) + (seconds / 3600);
+    if (ref === "S" || ref === "W") { decimal = decimal * -1; }
+    return decimal;
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    const smartInput = document.getElementById('smartPhotoUpload');
+    if(!smartInput) return;
+
+    smartInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        EXIF.getData(file, function() {
+            const latDMS = EXIF.getTag(this, "GPSLatitude");
+            const latRef = EXIF.getTag(this, "GPSLatitudeRef");
+            const lngDMS = EXIF.getTag(this, "GPSLongitude");
+            const lngRef = EXIF.getTag(this, "GPSLongitudeRef");
+
+            if (latDMS && lngDMS) {
+                const finalLat = convertDMSToDD(latDMS, latRef);
+                const finalLng = convertDMSToDD(lngDMS, lngRef);
+
+                alert("📍 位置情報を取得しました！(" + finalLat.toFixed(4) + ", " + finalLng.toFixed(4) + ")");
+
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    const localImageUrl = evt.target.result;
+                    const newName = prompt("スポット名を入力してください:", "思い出の場所");
+                    if (!newName) return;
+                    const newDesc = prompt("簡単な説明:", "GPSから自動追加");
+
+                    fetch("/api/add_marker", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            lat: finalLat, lng: finalLng, name: newName,
+                            image_base64: localImageUrl, description: newDesc, password: secretPassword
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        alert("✅ 追加完了！");
+                        // 【修改点】：同样丝滑重绘 UI
+                        refreshUI();
+                    });
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert("❌ この写真にはGPS(位置情報)が含まれていません。通常のクリック追加を使ってください。");
+            }
+        });
+        e.target.value = '';
+    });
+});
 
 window.onload = initMap;
