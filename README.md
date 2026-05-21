@@ -1,111 +1,91 @@
-# 🗺️ My Map Album
+# 🗺️ 思い出の軌跡 (Map Album)
 
-A lightweight, aesthetically pleasing, and private Web-based map album application. This project allows you to drop pins on a map and upload multiple photos for each location, automatically generating a sleek, horizontally scrollable gallery. It features a strict **password protection mechanism**: the default "View Mode" is strictly for browsing, while "Edit Mode" (which allows adding/deleting data) can only be accessed with a secret key.
+A lightweight, modern, and high-performance Single Page Application (SPA) map album built with FastAPI and Leaflet. Bind your precious memories with precise geographic coordinates and create your own visual "Atlas of Moments".
+
+## 🌟 Project Overview
+
+This project provides a clean, elegant, and frictionless interface to catalog your travels and memories. Through a complete architectural overhaul, the platform has been upgraded to a **Single Page Application (SPA)** framework. It features an advanced full-screen map layout integrated with an overlaying floating drawer, real-time UI re-rendering without page refreshes, client-side EXIF GPS parsing, and open-source reverse geocoding capabilities.
 
 ## ✨ Core Features
 
-* 📍 **Seamless Dual-Engine Support**: Switch instantly between the completely free, open-source **Leaflet** engine and the powerful **Google Maps** engine by changing just one line in the configuration file.
-* 📸 **Multi-Photo Gallery & Hot Reloading**: Break the single-photo limit! Append an unlimited number of photos to any existing marker. The popup features an elegant horizontal scroll gallery that updates instantly (hot-reloads) when you add or delete photos—no page refresh required.
-* 🎨 **Exquisite Visual Design**: Features custom delicate purple teardrop pins, deep burgundy typography, and automatic **Marker Clustering** that activates when zooming out, ensuring your map remains clean and minimalist from a macro perspective.
-* 🔒 **Secure Edit Mode**: Dual-layer security. Frontend UI prompts for a secret key to unlock edit capabilities, while backend APIs rigorously validate the password to prevent unauthorized tampering with your memories.
-* 🚀 **Effortless Deployment & Automation**: Built on FastAPI and a local SQLite database (zero configuration required). Once the server starts, it **automatically launches your default browser** directly to the app.
-* 📦 **Portable Standalone Executable**: Natively compatible with `PyInstaller`. Easily package the entire project into a single `.exe` (Windows) or `.app` (Mac) file. Just double-click to run—perfect for sharing with friends and family.
-
----
+* **🗺️ Immersive Full-Screen Layout & Floating Drawer**
+    * Abandoned rigid Flexbox structures for an absolute positioned `Overlay` model.
+    * Ultra-smooth sidebar slide animations with an interactive "handle" that dynamically switches arrow directions (`◀` / `▶`) via pure CSS pseudo-elements.
+* **⚡ SPA Re-rendering Engine (No Refreshes)**
+    * All CRUD actions (adding/deleting locations and appending photos) are handled completely asynchronously via AJAX.
+    * The centralized `refreshUI()` pipeline wipes and re-draws markers and sidebars instantly, ensuring that application state (such as Password validation and `isEditMode`) is never lost to a brute-force `location.reload()`.
+* **📍 Smart EXIF GPS Extraction**
+    * Built-in JavaScript client-side parsing of photo EXIF metadata. Automatically extracts geographic tags and converts Degrees/Minutes/Seconds (DMS) into Decimal Degrees (DD), offering a magical "upload to pinpoint" workflow.
+* **🔍 Free Open-Source Location Search**
+    * Seamlessly integrated with the OpenStreetMap (Nominatim) API via a centered, floating capsule search bar. Supports multi-language lookups (English, Japanese, Chinese, etc.) paired with Leaflet's native smooth `flyTo` flight animations.
+* **🎯 Pixel-Perfect UX Optimizations**
+    * **Invisible Hitbox Expansion**: Keeps the map visual crisp with tiny 14x21 SVG pin designs while expanding the physical interaction hitbox to 34x41 pixels. This completely eliminates misclicks, jitter, and click-through bugs on high-resolution screens.
+    * **Dynamic Contextual Cursor**: Switching to "Edit Mode" automatically changes the map wrapper class pointer to a precision crosshair (`cursor: crosshair !important`), providing strong visual feedback to the user.
+    * **Event Decoupling**: Completely fixed the classic Leaflet bug where custom pin `click` events clashed with the underlying native Popup engine, rendering second-clicks unresponsive.
+* **🛡️ Ngrok Anti-Interception Header**
+    * Front-end Fetch calls automatically bundle the `ngrok-skip-browser-warning` request header, bypassing Ngrok's free-tier anti-phishing landing page and guaranteeing clean API data streams.
 
 ## 🛠️ Tech Stack
 
-* **Backend:** Python 3, FastAPI, Uvicorn
-* **Database:** SQLite (Auto-generated and managed, featuring lossless structural data migration)
-* **Frontend:** HTML5, CSS3, Vanilla JavaScript
-* **Map Libraries:** Leaflet.js / Google Maps JavaScript API
+* **Frontend:**
+    * HTML5 / CSS3 (Pure native code, zero heavyweight component frameworks)
+    * Vanilla JavaScript (ES6+ Asynchronous architecture)
+    * [Leaflet.js](https://leafletjs.com/) (Core Map Engine)
+    * Leaflet MarkerCluster (Performance Optimization: Smart Pin Clustering)
+    * [EXIF-js](https://github.com/exif-js/exif-js) (Client-side metadata extraction)
+* **Backend:**
+    * Python 3.8+
+    * FastAPI (High-performance, asynchronous Web API framework)
+    * Uvicorn (ASGI production server)
+* **Database:**
+    * SQLite3 (Lightweight embedded storage)
 
----
+## 🚀 Quick Start
 
-## ⚙️ Configuration (`config.json`)
+### 1. Prerequisites
+Ensure you have Python 3.8 or above installed on your local system.
 
-Before running the application, ensure the `config.json` file is present in the root directory. This is the control center of your application:
+### 2. Clone and Install Dependencies
+~~~bash
+git clone https://github.com/your-username/map-album.git
+cd map-album
+pip install fastapi uvicorn
+~~~
 
-```json
-{
-    "map_provider": "leaflet", 
-    "google_maps_api_key": "YOUR_GOOGLE_KEY_HERE",
-    "edit_password": "mysecretpassword",
-    "server": {
-        "host": "0.0.0.0",
-        "port": 8000,
-        "reload": true
-    },
-    "database": {
-        "file_name": "map_photos.db"
-    }
-}
-```
+### 3. Spin Up the Development Server
+~~~bash
+uvicorn main:app --reload
+~~~
 
-* `map_provider`: Set to `"leaflet"` for the free open-source map, or `"google"` to use Google Maps.
-* `Maps_api_key`: If using Google Maps, paste your API key here (ignored if using Leaflet).
-* `edit_password`: **[CRITICAL]** The secret key required to enter Edit Mode and add/delete photos.
-* `reload`: Keep as `true` for development (auto-restarts on code save). If packaging into a standalone executable, the app is smart enough to bypass this to prevent crashes.
+### 4. Access the Platform
+Open your favorite web browser and navigate to: `http://localhost:8000`
 
----
+> **Note on Editing:** Click the green **"👁️ 現在: 閲覧モード"** button on the top right and enter your master password to toggle Edit Mode.
 
-## 🚀 Quick Start (Running from Source)
+## 📁 Architecture & Directory Structure
 
-1. **Install Dependencies**
-   Ensure you have Python 3.8+ installed. Run the following command in your terminal:
-   ```bash
-   pip install fastapi uvicorn pydantic
-   ```
+~~~text
+.
+├── main.py                 # FastAPI backend, routing, and SQLite CRUD transactions
+├── templates/
+│   └── leaflet.html        # Single Page Application HTML skeleton & CDN imports
+└── static/
+    ├── css/
+    │   └── style.css       # Layout overrides, overlay drawer mechanics, and animations
+    └── js/
+        └── leaflet_map.js  # Map initializers, asynchronous Fetch pipelines, and UI factories
+~~~
 
-2. **Start the Server**
-   Run the following command in your project directory:
-   ```bash
-   python main.py
-   ```
-   > 💡 **Tip**: Once the server boots up, it will automatically open `http://127.0.0.1:8000` in your default web browser!
+## 📝 Developer Notes
 
----
+* **Image Storage Strategy**: For structural simplicity, this project currently converts uploaded photos into base64 data strings and houses them directly inside text fields in the SQLite database (`map_photos.db`). If scaling for production environments or managing heavy high-resolution workloads, it is highly recommended to refactor the endpoints to pipe raw images directly to a local disk or cloud bucket (OSS/S3), storing only the respective file paths in the database.
+* **Authentication Layer**: The current status of user sessions relies entirely on client-side state variables. It does not write Session Cookies or use Web Tokens (JWT). This makes it beautifully lightweight and perfectly secure for localized deployments or private tunnels, but should be strengthened if opened up to multi-user public registration.
 
-## 💻 Usage Guide
+## 🤝 Contributing
 
-### 1. Browsing the Album (Default Mode)
-Upon opening, the map is locked in "View Mode". You can zoom around, click on the purple teardrop pins, and scroll through the photo galleries. All data is perfectly safe from accidental deletion.
+Contributions, issues, and feature requests are welcome! 
+Feel free to check the issues page.
 
-### 2. Adding New Locations & Photos
-1. Click the button in the top right corner and enter your `edit_password`.
-2. Once the button changes to "Edit Mode", **click anywhere on the map**.
-3. A file picker will appear. Select a photo, then follow the prompts to enter a "Location Name" and a "Short Description".
-4. A new pin will instantly drop onto the map!
-
-### 3. Appending & Deleting
-* **Append Photos**: In Edit Mode, click an existing pin and click the purple `➕ 写真を追加 (Add Photo)` button. The new photo will instantly appear at the end of the gallery.
-* **Delete Single Photo**: In Edit Mode, a red `✖` will hover in the top right corner of every photo. Click it to surgically remove just that image.
-* **Delete Entire Location**: Click the red `🗑️ スポット削除 (Delete Location)` button to completely wipe the location and all its associated photos from the database.
-
----
-
-## 📦 Packaging into a Standalone App (.exe / .app)
-
-If you want to run the app without a Python environment or share it with others, you can package it using `PyInstaller`:
-
-1. Install the packaging tool:
-```bash
-pip install pyinstaller
-```
-
-2. Execute the build command (run inside your project directory):
-
-* **Windows:**
-```bash
-pyinstaller --onefile --name="MapAlbum" --clean main.py
-```
-
-* **Mac:**
-```bash
-pyinstaller --onefile --windowed --name="MapAlbum" --clean main.py
-```
-
-3. **[CRUCIAL STEP]** Once finished, look inside the newly generated `dist` folder for your executable. **You MUST copy `config.json` and `map_photos.db` into the same folder as the executable** for it to run successfully. Double-click to enjoy!
 
 ## 💡 Credits
 
