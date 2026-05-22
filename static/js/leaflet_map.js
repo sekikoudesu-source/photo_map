@@ -173,6 +173,19 @@ function bindEvents() {
         });
         event.target.value = '';
     });
+    document.addEventListener('click', function() {
+        // 寻找所有目前正处于“拎出放大（front）”状态的卡片
+        const activeCards = document.querySelectorAll('.polaroid-card.front');
+        activeCards.forEach(card => {
+            card.classList.remove('front'); // 撤销放大摆正
+
+            // 顺便把它的弹窗层级也降回普通状态
+            const parentPopup = card.closest('.leaflet-popup');
+            if (parentPopup) {
+                parentPopup.style.removeProperty('z-index');
+            }
+        });
+    });
 }
 
 window.deleteMarkerFromDB = function(markerId) {
@@ -191,8 +204,13 @@ window.deletePhotoFromDB = function(photoId) {
     }).then(() => refreshUI());
 }
 
+// ==========================================
+// 点击卡片切换放大摆正状态，并解决跨地点遮挡问题
+// ==========================================
 window.bringPhotoToFront = function(event, cardElement) {
-    event.stopPropagation();
+    event.stopPropagation(); // 📌 斩断冒泡，拒绝穿透到地图引发乱打点
+
+    // 1. 处理单张照片在自己地点内部的置顶逻辑
     if (cardElement.classList.contains('front')) {
         cardElement.classList.remove('front');
     } else {
@@ -200,6 +218,18 @@ window.bringPhotoToFront = function(event, cardElement) {
         const allCards = currentStack.querySelectorAll('.polaroid-card');
         allCards.forEach(card => card.classList.remove('front'));
         cardElement.classList.add('front');
+
+        // 🚀 2. 核心新增：跨地点遮挡处理逻辑！
+        // 向上寻找包裹着这组照片的 Leaflet 原生弹窗最外层容器
+        const parentPopup = cardElement.closest('.leaflet-popup');
+        if (parentPopup) {
+            // 先把地图上所有其他打开的地点的层级重置回默认值
+            document.querySelectorAll('.leaflet-popup').forEach(popup => {
+                popup.style.zIndex = '';
+            });
+            // 强行把当前点击的这个地点容器拉高到最顶层，彻底碾压隔壁的地点
+            parentPopup.style.zIndex = '9999';
+        }
     }
 };
 
@@ -329,6 +359,19 @@ function initMap() {
 
     const fileInput = document.getElementById("photoUpload");
     map.on("click", (e) => {
+        // 1. 先检查当前有没有被放大的照片
+        const activeFrontCards = document.querySelectorAll('.polaroid-card.front');
+        if (activeFrontCards.length > 0) {
+            // 如果有，只负责收起照片，并直接 return 阻断后续的打点逻辑
+            activeFrontCards.forEach(card => {
+                card.classList.remove('front');
+                const parentPopup = card.closest('.leaflet-popup');
+                if (parentPopup) parentPopup.style.removeProperty('z-index');
+            });
+            return;
+        }
+
+        // 2. 如果没有放大的照片，且处于编辑模式，才执行正常的新建打点逻辑
         if (!isEditMode) return;
         tempClickedLat = e.latlng.lat; tempClickedLng = e.latlng.lng;
         fileInput.click();
@@ -338,8 +381,14 @@ function initMap() {
         const file = event.target.files[0];
         if (!file) return;
 
-        const newName = prompt("スポット名を入力:", "新しいスポット");
-        if (!newName) { event.target.value = ""; return; }
+        let newName = prompt("スポット名を入力:", "新しいスポット");
+        if (newName === null) {
+            event.target.value = "";
+            return; // 用户点击了“取消”，彻底中止
+        }
+        if (newName.trim() === "") {
+            newName = "名もなきスポット"; // 用户清空了名字但点了确定，给予默认名
+        }
 
         compressImage(file, function(compressedBase64) {
             fetch("/api/add_marker", {
@@ -350,6 +399,9 @@ function initMap() {
         event.target.value = "";
     });
 
+   // ==========================================
+    // 【终极进化版】智能寻轨照片 GPS 解析 + 逆地理编码自动命名
+    // ==========================================
     const smartInput = document.getElementById('smartPhotoUpload');
     const smartBtn = document.getElementById('smartUploadBtn');
 
@@ -367,7 +419,7 @@ function initMap() {
                 smartBtn.disabled = false;
                 e.target.value = '';
                 alert("❌ 解析超时！文件可能太大或格式不兼容。");
-            }, 3000);
+            }, 5000); // 考虑到要请求地名，超时时间放宽到 5 秒
 
             EXIF.getData(file, function() {
                 clearTimeout(timeoutSafeguard);
@@ -382,39 +434,89 @@ function initMap() {
 
                         if (!finalLat || !finalLng || isNaN(finalLat) || isNaN(finalLng)) {
                             alert("❌ 提取到的 GPS 卫星坐标格式不标准。");
+                            smartBtn.innerHTML = originalBtnText;
+                            smartBtn.disabled = false;
+                            e.target.value = '';
                             return;
                         }
 
-                        const newName = prompt("📍 成功定位！请输入地点名称:", "思い出の場所");
-                        if (!newName) return;
+                        // 🚀 新增：利用逆地理编码接口，将经纬度转换为真实物理地名
+                        smartBtn.innerHTML = "🌍 住所解析中...";
 
-                        smartBtn.innerHTML = "🚀 压缩并上传中...";
+                        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${finalLat}&lon=${finalLng}`)
+                            .then(res => res.json())
+                            .then(geoData => {
+                                let defaultPlaceName = "思い出の場所";
 
-                        compressImage(file, function(compressedBase64) {
-                            fetch("/api/add_marker", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ lat: finalLat, lng: finalLng, name: newName, image_base64: compressedBase64, description: "GPSから自动追加", password: secretPassword })
+                                // 智能提取最贴近的地理级别名称（如具体地标、街区、城镇）
+                                if (geoData && geoData.address) {
+                                    defaultPlaceName = geoData.address.amenity || geoData.address.neighbourhood || geoData.address.suburb || geoData.address.village || geoData.address.town || geoData.address.city || defaultPlaceName;
+                                }
+
+                                // 弹出提示框，默认值已经是真实地名了！
+                                let newName = prompt("📍 成功定位！请输入地点名称:", defaultPlaceName);
+
+                                if (newName === null) {
+                                    smartBtn.innerHTML = originalBtnText;
+                                    smartBtn.disabled = false;
+                                    e.target.value = '';
+                                    return; // 取消上传
+                                }
+                                if (newName.trim() === "") newName = defaultPlaceName; // 留空则使用获取到的地名
+
+                                executeUpload(finalLat, finalLng, newName, file);
                             })
-                            .then(res => {
-                                if (!res.ok) throw new Error("网络请求遭拒");
-                                return res.json();
-                            })
-                            .then(() => refreshUI())
-                            .catch(err => alert("❌ 上传遇到障碍: " + err.message));
-                        });
+                            .catch(err => {
+                                // 万一没网或者解析地名失败，不阻断上传，降级使用默认名字
+                                let newName = prompt("📍 成功定位！请输入地点名称:", "思い出の場所");
+                                if (newName === null) {
+                                    smartBtn.innerHTML = originalBtnText;
+                                    smartBtn.disabled = false;
+                                    e.target.value = '';
+                                    return;
+                                }
+                                if (newName.trim() === "") newName = "思い出の場所";
+
+                                executeUpload(finalLat, finalLng, newName, file);
+                            });
+
                     } else {
                         alert("❌ 照片内部不包含合法的 GPS 经纬度卫星元数据！");
+                        smartBtn.innerHTML = originalBtnText;
+                        smartBtn.disabled = false;
+                        e.target.value = '';
                     }
                 } catch (error) {
                     console.error("EXIF 轨道解析崩溃:", error);
                     alert("❌ 元数据解析过程中发生未捕获的异常。");
-                } finally {
                     smartBtn.innerHTML = originalBtnText;
                     smartBtn.disabled = false;
                     e.target.value = '';
                 }
             });
+
+            // 内部封装的上传执行器，避免代码重复
+            function executeUpload(lat, lng, placeName, imageFile) {
+                smartBtn.innerHTML = "🚀 压缩并上传中...";
+                compressImage(imageFile, function(compressedBase64) {
+                    fetch("/api/add_marker", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ lat: lat, lng: lng, name: placeName, image_base64: compressedBase64, description: "GPSから自动追加", password: secretPassword })
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error("网络请求遭拒");
+                        return res.json();
+                    })
+                    .then(() => refreshUI())
+                    .catch(err => alert("❌ 上传遇到障碍: " + err.message))
+                    .finally(() => {
+                        smartBtn.innerHTML = originalBtnText;
+                        smartBtn.disabled = false;
+                        smartInput.value = '';
+                    });
+                });
+            }
         });
     }
 

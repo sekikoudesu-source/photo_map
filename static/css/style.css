@@ -245,7 +245,10 @@ html, body {
 .polaroid-popup .leaflet-popup-tip-container {
     display: none !important;
 }
-
+/* 彻底抹除 Leaflet 原生自带的关闭小叉号 */
+.polaroid-popup .leaflet-popup-close-button {
+    display: none !important;
+}
 /* 📌 几何原点共享图钉 */
 .stack-pin {
     position: absolute;
