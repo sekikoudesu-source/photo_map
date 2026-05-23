@@ -2,91 +2,161 @@
 
 A lightweight, modern, and high-performance Single Page Application (SPA) map album built with FastAPI and Leaflet. Bind your precious memories with precise geographic coordinates and create your own visual "Atlas of Moments".
 
+---
+
 ## 🌟 Project Overview
 
-This project provides a clean, elegant, and frictionless interface to catalog your travels and memories. Through a complete architectural overhaul, the platform has been upgraded to a **Single Page Application (SPA)** framework. It features an advanced full-screen map layout integrated with an overlaying floating drawer, real-time UI re-rendering without page refreshes, client-side EXIF GPS parsing, and open-source reverse geocoding capabilities.
+This project is a high-fidelity, immersive full-stack personal map album system. Designed around a **Single Page Application (SPA)** architecture, the frontend discards heavy component frameworks in favor of pure, handcrafted HTML5, CSS3, and Vanilla JavaScript. The backend is powered by the asynchronous, high-performance **FastAPI** framework coupled with an embedded **SQLite3** database.
 
-## ✨ Core Features
+Going beyond basic geographic pin-mapping and photo management, this system features extensive optimization in visual presentation, data transfer efficiency, and hardware/network automation. It introduces a custom 3D physically-textured "Polaroid Wall" photo-stacking animation and seamlessly integrates client-side Canvas image compression, hardware-level EXIF satellite coordinate extraction, open-source reverse geocoding for zero-typing place naming, WebSocket full-duplex real-time synchronization, and automated Ngrok public tunneling. Whether deployed locally or hosted as a private cloud service, it offers an incredibly fluid, professional, and ritualistic user experience.
 
-* **🗺️ Immersive Full-Screen Layout & Floating Drawer**
-    * Abandoned rigid Flexbox structures for an absolute positioned `Overlay` model.
-    * Ultra-smooth sidebar slide animations with an interactive "handle" that dynamically switches arrow directions (`◀` / `▶`) via pure CSS pseudo-elements.
-* **⚡ SPA Re-rendering Engine (No Refreshes)**
-    * All CRUD actions (adding/deleting locations and appending photos) are handled completely asynchronously via AJAX.
-    * The centralized `refreshUI()` pipeline wipes and re-draws markers and sidebars instantly, ensuring that application state (such as Password validation and `isEditMode`) is never lost to a brute-force `location.reload()`.
-* **📍 Smart EXIF GPS Extraction**
-    * Built-in JavaScript client-side parsing of photo EXIF metadata. Automatically extracts geographic tags and converts Degrees/Minutes/Seconds (DMS) into Decimal Degrees (DD), offering a magical "upload to pinpoint" workflow.
-* **🔍 Free Open-Source Location Search**
-    * Seamlessly integrated with the OpenStreetMap (Nominatim) API via a centered, floating capsule search bar. Supports multi-language lookups (English, Japanese, Chinese, etc.) paired with Leaflet's native smooth `flyTo` flight animations.
-* **🎯 Pixel-Perfect UX Optimizations**
-    * **Invisible Hitbox Expansion**: Keeps the map visual crisp with tiny 14x21 SVG pin designs while expanding the physical interaction hitbox to 34x41 pixels. This completely eliminates misclicks, jitter, and click-through bugs on high-resolution screens.
-    * **Dynamic Contextual Cursor**: Switching to "Edit Mode" automatically changes the map wrapper class pointer to a precision crosshair (`cursor: crosshair !important`), providing strong visual feedback to the user.
-    * **Event Decoupling**: Completely fixed the classic Leaflet bug where custom pin `click` events clashed with the underlying native Popup engine, rendering second-clicks unresponsive.
-* **🛡️ Ngrok Anti-Interception Header**
-    * Front-end Fetch calls automatically bundle the `ngrok-skip-browser-warning` request header, bypassing Ngrok's free-tier anti-phishing landing page and guaranteeing clean API data streams.
+---
+
+## ✨ Core Features & Technical Evolutions
+
+### 1. 🖼️ High-Fidelity "Polaroid Wall" Physical Stacking
+* **Realistic Tactile Aesthetics**: Photo cards are rendered as realistic Polaroid snapshots, utilizing subtle randomized rotation variables (`--tilt`) to appear organic. They feature complex stacked shadows (`box-shadow`) and a 135° soft-gloss overlay gradient (`.photo-sheen`).
+* **Fan-Out Hover Effect**: Driven entirely by pure CSS transition matrices, hovering over a photo stack causes the underlying photos to dynamically spread out like a hand of cards, mimicking the tangible experience of flipping through physical photographs.
+* **Cross-Location Overlap Protection**: An intelligent layer-elevation algorithm identifies when a single photo is clicked to be centered and enlarged (`scale(1.15)`). It instantly locates the parent Leaflet Popup container and forces its layer index (`z-index`) to `9999`, completely overpowering and overlaying any nearby overlapping pins.
+
+### 2. ⚡ Physical Viewport Hard-Lock & Floating Drawer Layout
+* **Absolute Viewport Lock**: The main container (`#app-container`) implements a strict full-screen structural lock (`100vh` / `100vw`, `overflow: hidden`), completely preventing unwanted global layout scrollbars across desktop and mobile browsers.
+* **Suspended Timeline Drawer**: The left-hand timeline sidebar leverages an absolute-positioned floating drawer architecture controlled by a smooth `cubic-bezier(0.4, 0, 0.2, 1)` transition curve. Its toggle handle utilizes CSS pseudo-elements to automatically flip arrow indicators (`◀` / `▶`) based on layout states.
+* **Contextual Cursor System**: A custom global mouse cursor (`my_cursor.png`) is mapped across all interactive maps and layers. Toggling the application into Edit Mode automatically mutates the pointer into a high-precision crosshair (`cursor: crosshair`), providing strong interactive feedback.
+
+### 3. 📍 Smart EXIF Coordinate Extraction & Reverse Geocoding
+* **Hardware-Level Extraction**: Integrated with the `exif-js` engine, the frontend directly reads raw EXIF metadata embedded in images taken by smartphones or digital cameras. It automatically captures `GPSLatitude` and `GPSLongitude` tags, converting Degrees/Minutes/Seconds (DMS) into standard Decimal Degrees (DD).
+* **Zero-Input Automatic Place Naming**: Upon extracting valid satellite coordinates, the client dispatches an asynchronous reverse geocoding request to the OpenStreetMap Nominatim API. It extracts the closest contextual geographic node (such as landmarks `amenity`, neighborhoods `neighbourhood`, or towns/villages `suburb/town/village`) and pre-populates the location name field automatically, enabling a frictionless "upload-to-pinpoint" workflow.
+
+### 4. 🚀 Client-Side Canvas Extreme Image Compression
+* **Bandwidth & Storage Optimization**: Before multi-megabyte high-resolution image files leave the user's device, the frontend intercepts them using an HTML5 Canvas runtime. It calculates proportional downscaling (locking the maximum width to 1080px) and exports an 80%-quality-optimized `image/jpeg` Base64 data stream. This compresses individual files by over 90%, optimizing upload latency and drastically reducing server storage footprints.
+
+### 5. 💎 Performance Overhaul: Slim JSON & 1-Year HTTP Strong Cache
+* **Slim-Payload JSON API**: The communication pipeline has been heavily optimized. The core route `/api/get_markers` has been completely stripped of heavy image Base64 data. When initial map layers load, the frontend pulls a lightweight JSON tree containing only coordinate positions, location names, and photo IDs, boosting initial rendering speeds by orders of magnitude.
+* **Dedicated Image Pipeline & Strong Caching**: Each photo asset is fetched individually through a dedicated streaming channel (`/api/image/{photo_id}`). The backend injects an immutable strong cache header (`Cache-Control: public, max-age=31536000, immutable`), instructing web browsers to lock image assets in local hardware storage for 1 full year (31,536,000 seconds), ensuring subsequent visits load instantly.
+* **Dynamic Scale Synchronization**: The frontend dynamically calculates the map's current zoom level and mutates a CSS global variable `--photo-scale` (bound between 0.55x and 1.3x). At macro zoom levels (<11), a `.hide-polaroids` rule hides photo walls to maintain map clarity; when zooming into micro levels, a 150ms elastic buffer re-triggers DOM rendering to smoothly reveal the photos.
+
+### 6. 🛡️ Asynchronous Architecture & Deadlock-Free Storage
+* **SQLite3 WAL Mode Guard**: To prevent database locks or concurrent hanging errors during multi-client read/write operations, the backend initializes SQLite3 with Write-Ahead Logging (`PRAGMA journal_mode=WAL;`) alongside a 30-second busy timeout rule, significantly expanding concurrent data throughput.
+* **SPA State-Preserving Re-rendering**: All CRUD actions (creating locations, appending photos, deleting places, or removing individual images) are handled asynchronously via standard Fetch requests marshaled by a centralized `refreshUI()` pipeline. This avoids full-page browser flashes, cleanly repainting the map while safely preserving active user session data and password validation states.
+
+### 7. 🔄 WebSocket Full-Duplex Broadcast Hub
+* **Multi-Client State Sync**: The backend features an ASGI-compliant `ConnectionManager` that handles persistent WebSocket long-connections. Whenever an administrative user adds a place, appends a photo, or deletes data, the server broadcasts a `"refresh"` primitive across the `/ws` tunnel to all active global clients, triggering invisible, instant UI re-draws.
+
+### 8. 🌐 Automated Ngrok Public Tunneling
+* **Instant HTTPS Deployment**: The system integrates `pyngrok` directly into its bootstrap sequence. Upon launching the server, the application automatically requests an encrypted public `https` tunnel from Ngrok and prints the dynamic URL straight to the terminal. This provides instant remote mobile access and fulfills modern browser requirements forcing HTTPS for geolocation and secure Fetch pipelines.
+* **Seamless Warning Bypass**: Outbound frontend Fetch calls are pre-packaged with the custom `ngrok-skip-browser-warning` request header, completely bypassing Ngrok's free-tier anti-phishing landing page and guaranteeing clean, uninterrupted API streams.
+
+---
 
 ## 🛠️ Tech Stack
 
 * **Frontend:**
-    * HTML5 / CSS3 (Pure native code, zero heavyweight component frameworks)
-    * Vanilla JavaScript (ES6+ Asynchronous architecture)
-    * [Leaflet.js](https://leafletjs.com/) (Core Map Engine)
-    * Leaflet MarkerCluster (Performance Optimization: Smart Pin Clustering)
-    * [EXIF-js](https://github.com/exif-js/exif-js) (Client-side metadata extraction)
+  * **Core Layout**: HTML5 / CSS3 (Absolute-positioned Overlay architecture, independent of heavy UI component libraries)
+  * **Interactions**: Vanilla JavaScript (Modern asynchronous ES6+ streams and closure models)
+  * **Map Engine**: [Leaflet.js 1.9.4](https://leafletjs.com/) (Lightweight map layers control)
+  * **Cluster Optimization**: Leaflet.markercluster 1.4.1 (Sub-pixel marker aggregation algorithms)
+  * **Metadata Extraction**: [EXIF-js](https://github.com/exif-js/exif-js) (Client-side hardware metadata parsing)
 * **Backend:**
-    * Python 3.8+
-    * FastAPI (High-performance, asynchronous Web API framework)
-    * Uvicorn (ASGI production server)
-* **Database:**
-    * SQLite3 (Lightweight embedded storage)
+  * **Core Framework**: FastAPI (High-performance, ASGI-compliant asynchronous Python web framework)
+  * **Real-Time Communication**: WebSockets (Full-duplex event broadcasting mesh)
+  * **Tunneling Gateway**: Pyngrok (Automated secure public tunnel mapping)
+  * **ASGI Server**: Uvicorn (Lightweight, concurrent production-grade web server)
+* **Storage:**
+  * **Database Engine**: SQLite3 (Embedded relational storage running under WAL log mode)
 
-## 🚀 Quick Start
-
-### 1. Prerequisites
-Ensure you have Python 3.8 or above installed on your local system.
-
-### 2. Clone and Install Dependencies
-~~~bash
-git clone https://github.com/your-username/map-album.git
-cd map-album
-pip install fastapi uvicorn
-~~~
-
-### 3. Spin Up the Development Server
-~~~bash
-uvicorn main:app --reload
-~~~
-
-### 4. Access the Platform
-Open your favorite web browser and navigate to: `http://localhost:8000`
-
-> **Note on Editing:** Click the green **"👁️ 現在: 閲覧モード"** button on the top right and enter your master password to toggle Edit Mode.
+---
 
 ## 📁 Architecture & Directory Structure
 
-~~~text
+```text
 .
-├── main.py                 # FastAPI backend, routing, and SQLite CRUD transactions
+├── main.py                 # FastAPI Backend: Manages routing, WebSockets, SQLite3 WAL transactions, and Ngrok tunnels
+├── config.json             # Dynamic Server Configurations: Isolates credentials, database file paths, and server ports
 ├── templates/
-│   └── leaflet.html        # Single Page Application HTML skeleton & CDN imports
+│   └── leaflet.html        # SPA Skeleton HTML: Manages CDN assets, DOM declarations, and base layout anchors
 └── static/
     ├── css/
-    │   └── style.css       # Layout overrides, overlay drawer mechanics, and animations
+    │   └── style.css       # Polaroid Style Engine: Manages 3D fan-out hover matrices and responsive drawer animations
     └── js/
-        └── leaflet_map.js  # Map initializers, asynchronous Fetch pipelines, and UI factories
-~~~
+        └── leaflet_map.js  # Frontend Core Engine: Manages Canvas compression, EXIF parsing, reverse geocoding, and WS events
+```
+## 🚀 Quick Start
+
+### 1. Environment Requirements
+Ensure your host machine has **Python 3.8** or above installed.
+
+### 2. Clone the Repository & Install Dependencies
+```bash
+git clone [https://github.com/your-username/map-album.git](https://github.com/your-username/map-album.git)
+cd map-album
+pip install fastapi uvicorn pyngrok pydantic jinja2
+```
+
+### 3. Create the Configuration File `config.json`
+Create a file named `config.json` in the root directory of the project using the following layout:
+```json
+{
+  "edit_password": "your_secure_password",
+  "database": {
+    "file_name": "map_photos.db"
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "reload": false
+  }
+}
+```
+
+### 4. (Optional) Configure Your Ngrok Authtoken
+To allow the automated public tunnel to start without session constraints, go to the [Ngrok Dashboard](https://dashboard.ngrok.com/) to fetch your Authtoken. Replace the placeholder string near line 311 in `main.py`:
+```python
+ngrok.set_auth_token("YOUR_REAL_NGROK_AUTHTOKEN")
+```
+
+### 5. Launch the Production ASGI Server
+Run the following execution command in your terminal:
+```bash
+python main.py
+```
+Upon a successful bootstrap, the terminal console will output the following network tunnel data:
+```text
+⏳ 正在向 ngrok 申请公网隧道...
+
+==================================================
+🚀 公网访问地址已成功生成！
+🌍 任何人都可以通过此链接访问: [https://xxxx-xxxx.ngrok-free.app](https://xxxx-xxxx.ngrok-free.app)
+==================================================
+```
+
+### 6. Explore and Use the Platform
+Open your browser and navigate to the local host address `http://localhost:8000` or the generated `ngrok` public domain.
+* **Browsing Mode**: Entered by default. Users can safely click map markers, trigger the cascading fan-out Polaroid stacks, zoom in/out, and query places via the timeline floating drawer.
+* **Editing & Pinning Mode**: Click the green **"👁️ 現在: 閲覧モード"** button on the top-right corner and provide your master password defined in `config.json`. Once verified, the interface updates to an orange **"✏️ 現在: 編集モード"** button. You can now add memories via two methods:
+  1. **Manual Pinning**: Simply double-click (or single-click) anywhere on the map grid. A file selector will pop up. Upload a photo, enter a location name, and save.
+  2. **Smart Satellite Tracking**: Click the purple **"📍 写真から自動で位置取得"** button that appears on the right. Upload an original picture containing GPS tags. The map will instantly fly to the correct geographic spot and automatically pre-fill the real-world address via the reverse geocoding engine.
+
+---
 
 ## 📝 Developer Notes
 
-* **Image Storage Strategy**: For structural simplicity, this project currently converts uploaded photos into base64 data strings and houses them directly inside text fields in the SQLite database (`map_photos.db`). If scaling for production environments or managing heavy high-resolution workloads, it is highly recommended to refactor the endpoints to pipe raw images directly to a local disk or cloud bucket (OSS/S3), storing only the respective file paths in the database.
-* **Authentication Layer**: The current status of user sessions relies entirely on client-side state variables. It does not write Session Cookies or use Web Tokens (JWT). This makes it beautifully lightweight and perfectly secure for localized deployments or private tunnels, but should be strengthened if opened up to multi-user public registration.
+* **Image Storage Strategies & Production Scaling**:
+  To maintain a lightweight architecture and keep local setups simple, this project currently stores the compressed Base64 image data strings straight inside text fields inside the SQLite3 database (`map_photos.db`). Thanks to the **decoupled pipeline data architecture** and **strict 1-year immutable caching layer** implemented in this update, this setup delivers exceptional latency and loading metrics for private, individual, or small-team use.
+  *If you intend to scale this system for large-scale commercial architectures, multi-user accounts, or high-frequency traffic, it is highly recommended to rewrite the upload backend to save binary streams into object storage buckets (e.g., AWS S3, Alibaba Cloud OSS) and store only the resulting static URL string paths inside the database fields.*
+* **Session & Authentication Layer**:
+  Session persistence and state rules rely completely on frontend application states coupled with backend cryptographic string checks. It does not issue stateful Session Cookies or distribute heavy JSON Web Tokens (JWT). This keeps the code small, fast, and secure for private instances. For multi-tenant isolation, consider integrating official OAuth2 and JWT middleware interceptors.
+
+---
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! 
-Feel free to check the issues page.
+We welcome all forms of community contributions! If you encounter an edge-case bug, have performance optimization ideas, or want to create even cooler 3D visual photo styles:
+* Open an **Issue** to report bugs or request features.
+* Submit a **Pull Request** to patch code directly.
 
+---
 
 ## 💡 Credits
 
-A special thanks to **Xu Xiaofan**, who proposed the original idea for this project and contributed to its elegant visual design concepts.
+Special thanks to **Xu Xiaofan**, who proposed the original concept for this project and contributed invaluable artistic guidance to the interactive visual framework of the Polaroid stack UI.
