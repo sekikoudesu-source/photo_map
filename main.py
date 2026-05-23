@@ -289,31 +289,30 @@ async def delete_photo(photo_id: int, data: ActionAuth):
     return {"status": "ok"}
 
 if __name__ == "__main__":
-    if __name__ == "__main__":
-        # 从配置文件读取你的设置 (你代码里原本就有的)
-        host = SERVER_HOST
-        port = SERVER_PORT
+    # 从配置文件读取你的设置 (你代码里原本就有的)
+    host = SERVER_HOST
+    port = SERVER_PORT
 
-        # ⚠️ 强烈建议：如果你还没在本地终端配置过 ngrok 的 token，可以在这里写死
-        # 去 ngrok 官网仪表盘复制你的 Authtoken 替换下面的字符串
-        ngrok.set_auth_token("3E0vbDwynMtDXEGkSbi3w7PVmFY_41PjX5GjQPFJWAT1yizvw")
+    # ⚠️ 强烈建议：如果你还没在本地终端配置过 ngrok 的 token，可以在这里写死
+    # 去 ngrok 官网仪表盘复制你的 Authtoken 替换下面的字符串
+    ngrok.set_auth_token("3E0vbDwynMtDXEGkSbi3w7PVmFY_41PjX5GjQPFJWAT1yizvw")
 
-        print("⏳ 正在向 ngrok 申请公网隧道...")
+    print("⏳ 正在向 ngrok 申请公网隧道...")
 
-        try:
-            # 创建一个指向本地端口的 HTTP 隧道
-            # bind_tls=True 强制使用 https，这在现代浏览器调用摄像头或定位时是必须的
-            public_url = ngrok.connect(port, bind_tls=True).public_url
+    try:
+        # 创建一个指向本地端口的 HTTP 隧道
+        # bind_tls=True 强制使用 https，这在现代浏览器调用摄像头或定位时是必须的
+        public_url = ngrok.connect(port, bind_tls=True).public_url
 
-            print("\n" + "=" * 50)
-            print(f"🚀 公网访问地址已成功生成！")
-            print(f"🌍 任何人都可以通过此链接访问: {public_url}")
-            print("=" * 50 + "\n")
+        print("\n" + "=" * 50)
+        print(f"🚀 公网访问地址已成功生成！")
+        print(f"🌍 任何人都可以通过此链接访问: {public_url}")
+        print("=" * 50 + "\n")
 
-        except Exception as e:
-            print(f"❌ ngrok 隧道建立失败: {e}")
-            sys.exit(1)
+    except Exception as e:
+        print(f"❌ ngrok 隧道建立失败: {e}")
+        sys.exit(1)
 
-        # 启动你的 FastAPI 服务器
-        # ⚠️ 注意：开启 ngrok 代码调用时，务必将 reload 设为 False
-        uvicorn.run("main:app", host=host, port=port, reload=False)
+    # 启动你的 FastAPI 服务器
+    # ⚠️ 注意：开启 ngrok 代码调用时，务必将 reload 设为 False
+    uvicorn.run("main:app", host=host, port=port, reload=False)
