@@ -67,20 +67,6 @@ Going beyond basic geographic pin-mapping and photo management, this system feat
 
 ---
 
-## 📁 Architecture & Directory Structure
-
-```text
-.
-├── main.py                 # FastAPI Backend: Manages routing, WebSockets, SQLite3 WAL transactions, and Ngrok tunnels
-├── config.json             # Dynamic Server Configurations: Isolates credentials, database file paths, and server ports
-├── templates/
-│   └── leaflet.html        # SPA Skeleton HTML: Manages CDN assets, DOM declarations, and base layout anchors
-└── static/
-    ├── css/
-    │   └── style.css       # Polaroid Style Engine: Manages 3D fan-out hover matrices and responsive drawer animations
-    └── js/
-        └── leaflet_map.js  # Frontend Core Engine: Manages Canvas compression, EXIF parsing, reverse geocoding, and WS events
-```
 ## 🚀 Quick Start
 
 ### 1. Environment Requirements
