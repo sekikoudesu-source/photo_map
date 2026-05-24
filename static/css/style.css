@@ -346,15 +346,40 @@ html, body {
     z-index: 2;
 }
 
+/* ==========================================
+   相纸底栏及手写体排版重构
+   ========================================== */
 .polaroid-caption {
-    margin-top: 10px;
+    padding: 8px 12px 6px 12px; /* 增加左右内边距，防止文字贴边 */
+    box-sizing: border-box;
+
+    /* 引入手写字体链 */
+    font-family: 'Yomogi', 'Comic Sans MS', cursive;
+    color: #1a1a1a;
+    font-weight: 600;
+    text-shadow: 0px 0px 1px rgba(0, 0, 0, 0.4);
+    opacity: 0.9;
+
+    /* 开启垂直弹性布局 */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* 名字居中对齐，字号适中 */
+.caption-name {
     text-align: center;
-    font-family: 'Hiragino Maru Gothic ProN', cursive, sans-serif;
-    font-size: 13px;
-    color: #48484a;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 1.15rem;
+    letter-spacing: 1px;
+    word-break: break-all;
+}
+
+/* 🚀 日期自动换行、完美靠右下角，字号略微缩小，尽显手写细节 */
+.caption-date {
+    text-align: right;
+    font-size: 0.9rem;
+    margin-top: 6px; /* 创造优雅的换行间距 */
+    letter-spacing: 0.5px;
 }
 
 .delete-photo-btn {

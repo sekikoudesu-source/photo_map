@@ -83,6 +83,8 @@ def init_db():
                            TEXT
                            NOT
                            NULL,
+                           capture_date
+                           TEXT,
                            FOREIGN
                            KEY
                        (
@@ -93,10 +95,18 @@ def init_db():
                        ) ON DELETE CASCADE
                            )
                        """)
+
+        # 🚀 新增：数据库无损热更新补丁
+        # 尝试向已经存在的老表中强行插入 capture_date 列
+        try:
+            cursor.execute("ALTER TABLE photos ADD COLUMN capture_date TEXT")
+        except sqlite3.OperationalError:
+            # 如果捕捉到报错，说明这个列已经存在了，直接无视并跳过即可
+            pass
+
         conn.commit()
     finally:
         conn.close()
-
 
 init_db()
 
@@ -141,11 +151,12 @@ class MarkerCreate(BaseModel):
     image_base64: str
     description: str = ""
     password: str
-
+    date: str = ""  # 👈 🚀 新增：接收前端传来的日期字符串
 
 class PhotoCreate(BaseModel):
     image_base64: str
     password: str
+    date: str = ""
 
 
 class ActionAuth(BaseModel):
@@ -192,8 +203,8 @@ async def get_markers():
         markers = [dict(row) for row in cursor.fetchall()]
 
         for m in markers:
-            # 仅提取照片 ID，彻底剥离沉重的 Base64 字符串
-            cursor.execute("SELECT id FROM photos WHERE marker_id = ?", (m["id"],))
+            # ⚡ 核心修改：把 photos 表的 id 和 capture_date 一起查出来
+            cursor.execute("SELECT id, capture_date FROM photos WHERE marker_id = ?", (m["id"],))
             m["photos"] = [dict(row) for row in cursor.fetchall()]
         return markers
     finally:
@@ -238,7 +249,9 @@ async def add_marker(data: MarkerCreate):
         cursor.execute("INSERT INTO markers (lat, lng, name, description) VALUES (?, ?, ?, ?)",
                        (data.lat, data.lng, data.name, data.description))
         marker_id = cursor.lastrowid
-        cursor.execute("INSERT INTO photos (marker_id, base64) VALUES (?, ?)", (marker_id, data.image_base64))
+        # ⚡ 核心修改：把 data.date 写入 capture_date 字段
+        cursor.execute("INSERT INTO photos (marker_id, base64, capture_date) VALUES (?, ?, ?)",
+                       (marker_id, data.image_base64, data.date))
         conn.commit()
     finally:
         conn.close()
@@ -252,7 +265,9 @@ async def add_photo(marker_id: int, data: PhotoCreate):
     conn = sqlite3.connect(DB_PATH, timeout=30)
     try:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO photos (marker_id, base64) VALUES (?, ?)", (marker_id, data.image_base64))
+        # ⚡ 核心修改：追加写入 capture_date 字段
+        cursor.execute("INSERT INTO photos (marker_id, base64, capture_date) VALUES (?, ?, ?)",
+                       (marker_id, data.image_base64, data.date))
         conn.commit()
     finally:
         conn.close()
